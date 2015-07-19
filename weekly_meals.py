@@ -67,7 +67,6 @@ def meals(meal_id):
     if request.method == 'GET':
         return meal_api.get(meal_id)
     elif request.method == 'PUT':
-        print request.data
         return meal_api.put(meal_id, request.data)
 
 if __name__ in ('main', '__main__'):
