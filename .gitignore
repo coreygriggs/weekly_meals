@@ -6,7 +6,7 @@ __pycache__/
 config.yaml
 # C extensions
 *.so
-
+*idea/
 # Distribution / packaging
 .Python
 env/
