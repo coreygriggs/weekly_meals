@@ -1,29 +1,23 @@
-__author__ = 'coreygriggs'
-
 import unittest
-from flask import Flask
-import yaml
-from sqlalchemy import create_engine
-from multiprocessing import Process
-import requests
+import weekly_meals
 
 
-class TestMealsApi(unittest.TestCase):
-
-    def create_app(self, db_uri, debug=False):
-        app = Flask(__name__)
-        app.debug = debug
-        app.engine = create_engine(db_uri)
-        return app
+class MealsTest(unittest.TestCase):
 
     def setUp(self):
-        self.config_file = open('test_config.yaml', 'r')
-        self.config = yaml.load(self.config_file)
-        self.app = self.create_app(self.config["SQLALCHEMY_DATABASE_URI"], debug=True)
-        self.requests = requests
+        weekly_meals.app.config["SQLALCHEMY_DATABASE_URI"] = 'sqlite:///test.db'
+        weekly_meals.app.config['TESTING'] = True
+        self.app = weekly_meals.app.test_client()
+        with weekly_meals.app.app_context():
+            weekly_meals.init_db()
 
-    # def test_post_valid_meal_request(self):
-    #     self.requests.post('http://localhost:5000/meals/%s' % )
+    def test_create_meal_posts_meal(self):
+        response = self.app.get('/', follow_redirects=True)
+        self.assertEqual(response.status_code, 200)
+
+    def tearDown(self):
+        with weekly_meals.app.app_context():
+            weekly_meals.db.drop_all()
 
 
 if __name__ in ('main', '__main__'):
