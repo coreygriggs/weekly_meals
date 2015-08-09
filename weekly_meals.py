@@ -9,7 +9,8 @@ from forms import MealForm
 
 
 app = Flask(__name__)
-db = SQLAlchemy(app)
+db = SQLAlchemy()
+db.init_app(app)
 config_file = open('config.yaml', 'r')
 config = yaml.load(config_file)
 app.config["SQLALCHEMY_DATABASE_URI"] = config["SQLALCHEMY_DATABASE_URI"]
@@ -19,6 +20,11 @@ meal_ingredient = db.Table('meal_ingredient',
                             db.Column('meal_id', db.Integer, db.ForeignKey('meal.id'), nullable=False),
                             db.Column('ingredient_id', db.Integer, db.ForeignKey('ingredient.id'), nullable=False),
                             db.PrimaryKeyConstraint('meal_id', 'ingredient_id'))
+
+
+def init_db():
+    db.init_app(app)
+    db.create_all()
 
 
 class Ingredient(db.Model):
