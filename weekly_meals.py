@@ -1,14 +1,13 @@
-from flask import (Flask, render_template, jsonify, request, flash, redirect, url_for)
+__author__ = 'coreygriggs'
+
+from flask.ext.api import FlaskAPI, exceptions, status
+from flask import request, send_file
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import update
 import yaml
 from datetime import datetime
-import json
-from util import converted_time
-from forms import MealForm
 
-
-app = Flask(__name__)
+app = FlaskAPI(__name__)
 db = SQLAlchemy()
 db.init_app(app)
 config_file = open('config.yaml', 'r')
@@ -16,6 +15,8 @@ config = yaml.load(config_file)
 app.config["SQLALCHEMY_DATABASE_URI"] = config["SQLALCHEMY_DATABASE_URI"]
 app.config["DEBUG"] = config["DEBUG"]
 app.config["SECRET_KEY"] = config["SECRET_KEY"]
+app.config["DEFAULT_RENDERERS"] = config["DEFAULT_RENDERERS"]
+
 meal_ingredient = db.Table('meal_ingredient',
                             db.Column('meal_id', db.Integer, db.ForeignKey('meal.id'), nullable=False),
                             db.Column('ingredient_id', db.Integer, db.ForeignKey('ingredient.id'), nullable=False),
@@ -41,77 +42,69 @@ class Meal(db.Model):
     meal_name = db.Column(db.String(256))
     ingredients = db.relationship('Ingredient', secondary=meal_ingredient)
 
-
-class MealAPI():
-
-    def format_meal_res(self, meal):
-        """
-	    Wrapper around a meal result row
-	    :param meal: A sqlalchemy row object
-	    :return: A json string
-        """
-        return json.dumps({"id": meal.id, "created": converted_time(meal.created), "updated": converted_time(meal.updated),
-                           "meal_name": meal.meal_name, "ingredients": meal.ingredients})
-
-    def get(self, meal_id=None):
-        if meal_id is None:
-            return db.session.query(Meal).order_by(Meal.id.desc()).limit(10)
-        meal = db.session.query(Meal).filter(Meal.id == meal_id).first()
-        if meal is None:
-            return jsonify({"error": "This meal does not exist"})
-        return meal
-
-    def post(self, meal):
-        meal = json.loads(meal)
-        meal["created"] = datetime.utcnow()
-        db.session.add(Meal(**meal))
-        db.session.commit()
-        return json.dumps({"success": "Meal %s has been created" % meal["meal_name"]})
-
-    def put(self, meal_id, meal):
-        db.session.execute(update(Meal).where(Meal.id == meal_id).values(meal_name=meal))
-        db.session.commit()
-        updated_row = db.session.query(Meal).filter(Meal.id == meal_id).first()
-        return updated_row
-
-    def delete(self, meal_id):
-        meal = db.session.query(Meal).filter(Meal.id==meal_id).first()
-        db.session.delete(meal)
-        db.session.commit()
-        return {"success": "%s has been deleted" % meal.meal_name}
-
-
-@app.route('/', methods=['GET', 'POST'])
+@app.route('/')
 def index():
-    form = MealForm()
-    last_ten_meals = MealAPI().get()
-    if request.method == 'GET':
-        return render_template('index.html', form=form, meals=last_ten_meals)
-    elif request.method == 'POST':
-        if form.validate_on_submit():
-            if request.method == 'POST':
-                new_meal = Meal(meal_name=form.meal_name.data, created=datetime.utcnow())
-                db.session.add(new_meal)
-                db.session.commit()
-                return render_template('index.html', form=form, meals=last_ten_meals)
+    return send_file('templates/index.html')
 
 
-@app.route('/meals/<int:meal_id>', methods=['GET', 'POST', 'DELETE'])
-def meals(meal_id):
-    meal_api = MealAPI()
-    form = MealForm()
-    if request.method == 'GET':
-        this_meal = meal_api.get(meal_id)
-        return render_template('meal.html', meal=this_meal, form=form)
-    elif request.method == 'POST':
-        meal_update = meal_api.put(meal_id, form.meal_name.data)
-        return render_template('meal.html', meal=meal_update, form=form)
-    elif request.method == 'DELETE':
-        deleted_meal = meal_api.delete(meal_id)
-        flash("%s" % deleted_meal['success'])
-        return redirect(url_for('index'))
+@app.route('/meals', methods=['GET', 'POST'])
+def meals():
+    if request.method == 'POST':
+        new_meal = request.data
+        if 'meal_name' not in new_meal.keys():
+            return exceptions.NotAcceptable()
+        db_meal = Meal(meal_name=new_meal["meal_name"])
+        db.session.add(db_meal)
+        if 'ingredients' in new_meal:
+            for ingredient_item in new_meal['ingredients']:
+                meal_ingredient.insert().values(meal_id=db_meal, ingredient_id=ingredient_item)
+            ingredient_data = [{ingredient.id: ingredient.ingredient_name} for ingredient in db.session.query(Ingredient).\
+	        filter(Ingredient.id.in_(new_meal['ingredients'])).all()]
+            db.session.commit()
+            return {db_meal.id: db_meal.meal_name, "ingredients": ingredient_data}, status.HTTP_201_CREATED
+        else:
+            db.session.commit()
+            return {db_meal.id: db_meal.meal_name}, status.HTTP_201_CREATED
+    else:
+        meals = db.session.query(Meal).all()
+        if len(meals) >= 1:
+            return [{meal.id: meal.meal_name, "ingredients": [ing_id for ing_id in db.session.query(meal_ingredient).\
+	                                                          filter(meal_ingredient.c.meal_id==meal.id)]} for meal in meals]
+        else:
+            return {"success": "no meals have been created"}
 
+@app.route('/meals/<int:meal_id>')
+def meal(meal_id):
+    meal = db.session.query(Meal).filter(Meal.id==meal_id).first()
+    if meal is not None:
+        return {meal.id: meal.meal_name}
+    else:
+        return exceptions.NotFound()
 
+@app.route('/ingredients', methods=['GET', 'POST'])
+def ingredients():
+    if request.method == 'POST':
+        if 'ingredient_name' not in request.data.keys():
+            return exceptions.NotAcceptable()
+        new_ingredient = Ingredient(ingredient_name=request.data['ingredient_name'])
+        db.session.add(new_ingredient)
+        db.session.commit()
+        return {new_ingredient.id: new_ingredient.ingredient_name}, status.HTTP_201_CREATED
+    ingredients = db.session.query(Ingredient).all()
+    return [{ingredient.id: ingredient.ingredient_name} for ingredient in ingredients]
+
+@app.route('/ingredients/<int:ingredient_id>', methods=['GET', 'PATCH'])
+def ingredient(ingredient_id):
+    if request.method == 'PATCH':
+        db.session.execute(update(Ingredient).where(Ingredient.id==ingredient_id).values(ingredient_name=request.data['ingredient_name']))
+        db.session.commit()
+        new_ingredient = db.session.query(Ingredient).filter(Ingredient.id==ingredient_id).first()
+        return {new_ingredient.id: new_ingredient.ingredient_name}
+    ingredient = db.session.query(Ingredient).filter(Ingredient.id==ingredient_id).first()
+    if ingredient is not None:
+        return {ingredient.id: ingredient.ingredient_name}
+    else:
+        raise exceptions.NotFound()
 
 if __name__ in ('main', '__main__'):
     app.run()

@@ -6,13 +6,6 @@
     <script type="text/javascript" src="../static/jquery.js"></script>
 </head>
 <body>
-    <form id="meal-form" action="/" method="POST">
-        {{ form.csrf_token }}
-        {{ form.meal_name.label }} {{ form.meal_name(size=20) }}
-        <input type="submit" value="Submit"/>
-    </form>
-    {% for meal in meals %}
-        <a href="/meals/{{ meal.id }}">{{ meal.meal_name }}</a>
-    {% endfor %}
+    <p>this is the thing</p>
 </body>
 </html>
