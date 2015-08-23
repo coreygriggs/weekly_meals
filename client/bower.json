@@ -1,0 +1,20 @@
+{
+  "name": "client",
+  "version": "0.0.1",
+  "homepage": "https://github.com/coreygriggs/weekly_meals",
+  "description": "an app for creating, saving, and scheduling meals & ingredients",
+  "authors": [
+    "coreygriggs"
+  ],
+  "ignore": [
+    "**/.*",
+    "node_modules",
+    "bower_components",
+    "test",
+    "tests"
+  ],
+  "devDependencies": {
+    "angular": "~1.4.4",
+    "jquery": "~2.1.4"
+  }
+}
