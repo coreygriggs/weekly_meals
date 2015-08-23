@@ -1,7 +1,7 @@
 __author__ = 'coreygriggs'
 
 from flask.ext.api import FlaskAPI, exceptions, status
-from flask import request, send_file
+from flask import request, send_file, render_template
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import update
 import yaml
@@ -42,12 +42,8 @@ class Meal(db.Model):
     meal_name = db.Column(db.String(256))
     ingredients = db.relationship('Ingredient', secondary=meal_ingredient)
 
-@app.route('/')
-def index():
-    return send_file('templates/index.html')
 
-
-@app.route('/meals', methods=['GET', 'POST'])
+@app.route('/api/meals', methods=['GET', 'POST'])
 def meals():
     if request.method == 'POST':
         new_meal = request.data
@@ -73,7 +69,7 @@ def meals():
         else:
             return {"success": "no meals have been created"}
 
-@app.route('/meals/<int:meal_id>')
+@app.route('/api/meals/<int:meal_id>')
 def meal(meal_id):
     meal = db.session.query(Meal).filter(Meal.id==meal_id).first()
     if meal is not None:
@@ -81,7 +77,7 @@ def meal(meal_id):
     else:
         return exceptions.NotFound()
 
-@app.route('/ingredients', methods=['GET', 'POST'])
+@app.route('/api/ingredients', methods=['GET', 'POST'])
 def ingredients():
     if request.method == 'POST':
         if 'ingredient_name' not in request.data.keys():
@@ -93,7 +89,7 @@ def ingredients():
     ingredients = db.session.query(Ingredient).all()
     return [{ingredient.id: ingredient.ingredient_name} for ingredient in ingredients]
 
-@app.route('/ingredients/<int:ingredient_id>', methods=['GET', 'PATCH'])
+@app.route('/api/ingredients/<int:ingredient_id>', methods=['GET', 'PATCH'])
 def ingredient(ingredient_id):
     if request.method == 'PATCH':
         db.session.execute(update(Ingredient).where(Ingredient.id==ingredient_id).values(ingredient_name=request.data['ingredient_name']))
